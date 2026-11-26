@@ -1,17 +1,28 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from streamlit_option_menu import option_menu
 from datetime import datetime, timedelta
 from garminconnect import Garmin
 
 st.set_page_config(page_title="Běžecký Deník", page_icon="🏃", layout="wide")
 
 # --- BOČNÍ MENU ---
-st.sidebar.title("🏃 Běžecký Deník")
-stranka = st.sidebar.radio(
-    "Menu",
-    ["📊 Dashboard", "🏃 Deník aktivit", "⚙️ Nastavení zón", "📝 Budoucí deník"]
-)
+with st.sidebar:
+    st.title("🏃 Běžecký Deník")
+    stranka = option_menu(
+        menu_title=None,
+        options=["Dashboard", "Deník aktivit", "Nastavení zón", "Budoucí deník"],
+        icons=["speedometer2", "activity", "gear", "journal-text"],
+        default_index=0,
+        styles={
+            "container": {"padding": "0!important", "background-color": "transparent"},
+            "icon": {"font-size": "18px"},
+            "nav-link": {"font-size": "16px", "text-align": "left", "margin": "4px 0px", "--hover-color": "#262730"},
+            "nav-link-selected": {"background-color": "#e74c3c", "font-weight": "bold"},
+        }
+    )
+
 
 st.sidebar.divider()
 st.sidebar.subheader("🔐 Připojení Garmin")
@@ -115,7 +126,7 @@ if st.sidebar.button("🔄 Synchronizovat z Garminu", use_container_width=True):
 # ==========================================
 # STRÁNKA 1: DASHBOARD
 # ==========================================
-if stranka == "📊 Dashboard":
+if stranka == "Dashboard":
     st.title(f"📊 Přehled za posledních {st.session_state.dni_zpet} dní")
     
     if not email or not heslo:
@@ -209,7 +220,7 @@ if stranka == "📊 Dashboard":
 # ==========================================
 # STRÁNKA 2: DENÍK AKTIVIT
 # ==========================================
-elif stranka == "🏃 Deník aktivit":
+elif stranka == "Deník aktivit":
     st.title("🏃 Seznam stažených aktivit")
     if email and heslo:
         df = nacti_data_z_garminu(email, heslo, st.session_state.dni_zpet, lim_pomaly_sec, lim_rychly_sec)
@@ -220,7 +231,7 @@ elif stranka == "🏃 Deník aktivit":
 # ==========================================
 # STRÁNKA 3: NASTAVENÍ ZÓN
 # ==========================================
-elif stranka == "⚙️ Nastavení zón":
+elif stranka == "Nastavení zón":
     st.title("⚙️ Nastavení zón a tréninkových cílů")
     
     col1, col2 = st.columns(2)
@@ -255,7 +266,7 @@ elif stranka == "⚙️ Nastavení zón":
 # ==========================================
 # STRÁNKA 4: BUDOUCÍ TRÉNINKOVÝ DENÍK
 # ==========================================
-elif stranka == "📝 Budoucí deník":
+elif stranka == "Budoucí deník":
     st.title("📝 Tréninkový deník (Připraveno k rozšíření)")
     st.info("Tato sekce je připravená pro budoucí napojení databáze Supabase:")
     st.markdown("""
