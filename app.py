@@ -10,7 +10,7 @@ st.set_page_config(page_title="Běžecký Deník", page_icon="🏃", layout="wid
 # --- BOČNÍ MENU ---
 with st.sidebar:
     st.title("🏃 Běžecký Deník")
-        stranka = option_menu(
+    stranka = option_menu(
             menu_title=None,
             options=["Dashboard", "Plánovač", "Deník aktivit", "Nastavení zón", "Budoucí deník"],
             icons=["speedometer2", "calendar-plus", "activity", "gear", "journal-text"],
