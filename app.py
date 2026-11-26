@@ -191,13 +191,16 @@ if stranka == "📊 Dashboard":
                         names="Zóna",
                         color="Zóna",
                         color_discrete_map={
-                            "🟢": "#2ecc71",
-                            "🟡": "#f1c40f",
-                            "🔴": "#e74c3c"
+                            "🟢 Objem": "#2ecc71",
+                            "🟡 Šedá zóna": "#f1c40f",
+                            "🔴 Rychlost": "#e74c3c"
                         },
                         hole=0.45
                     )
-                    fig.update_traces(textposition="inside", textinfo="percent+label")
+                    fig.update_traces(
+                        textinfo="none",
+                        hovertemplate="<b>%{label}</b><br>Čas: %{value:.1f} min<br>Podíl: %{percent}<extra></extra>"
+                    )
                     st.plotly_chart(fig, use_container_width=True)
 
             except Exception as e:
