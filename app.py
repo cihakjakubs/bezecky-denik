@@ -235,7 +235,14 @@ if stranka == "Dashboard":
                             f"{posledni_ef} (poslední běh)",
                             f"{rozdil_ef:+} oproti průměru ({prum_ef})"
                         )
-                        st.caption("Čím vyšší číslo, tím rychleji běžíš na stejný tep (forma jde nahoru).")
+                        with st.expander("ℹ️ Jak se počítá Index aerobní efektivity (EF)?"):
+                         st.markdown("""
+                         **Vzorec:** `EF = Průměrná rychlost (v metrech za minutu) ÷ Průměrný tep (bpm)`
+
+                         * **Co to znamená:** Ukazuje, kolik metrů uběhneš na jeden jediný úder srdce.
+                         * **Jak to číst:** Pokud běžíš stejným tempem, ale tvůj tep klesá (nebo při stejném tepu běžíš rychleji), **index EF roste** – tvoje aerobní kondice se zlepšuje.
+                         * **Poznámka:** Nejlépe se porovnávají podobné rovinaté běhy; kopce nebo intervaly mohou hodnotu mírně zkreslit.
+                         """)
 
                         behy_trend = behy_ef.sort_values("Datum")
                         fig_ef = px.line(
