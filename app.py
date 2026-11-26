@@ -79,17 +79,19 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
         vzdalenost = round(akt.get('distance', 0) / 1000, 2)
         tep = akt.get('averageHR', 0)
         celkovy_cas_min = round(akt.get('duration', 0) / 60, 1)
-        prevyseni_celkem = akt.get('elevationGain', 0) or 0
+        prevyseni_celkem = int(round(akt.get('elevationGain', 0) or 0))
+        event_type = akt.get('eventType', {}).get('typeKey', '')
 
         beh_objem, beh_seda, beh_rychlost = 0, 0, 0
         kategorie = "🏃 Běh" if 'running' in typ else "🏋️ Posilování"
 
         nazev_lower = nazev.lower()
         je_ob_auto = ('trail' in typ) or any(slovo in nazev_lower for slovo in ['trail', 'ob', 'orienťák', 'orientak', 'les'])
+        je_zavod_nazev = ('race' in event_type) or any(slovo in nazev_lower for slovo in ['závod', 'zavod', 'race', 'mčr', 'mcr', 'pohár', 'pohar', 'liga'])
         pouzit_tep_rezim = (aid in rucni_teren_ids) or je_ob_auto
 
-        rychle_useky_pocet = 0
-        v_rychlem_useku = False
+        rychle_useky_delky = []
+        aktualni_rychly_usek = 0.0
         nastoupano_v_rychlosti = 0.0
 
         if kategorie == "🏃 Běh":
@@ -116,7 +118,9 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
                     rozdil = (c_ted - c_pred) / 1000.0
                     if rozdil > 10:
                         historie_vysky.clear()
-                        v_rychlem_useku = False
+                        if aktualni_rychly_usek >= 8.0:
+                            rychle_useky_delky.append(aktualni_rychly_usek)
+                        aktualni_rychly_usek = 0.0
                         continue
 
                     hr_ted = m_ted[idx_tep] if (idx_tep is not None and m_ted[idx_tep] is not None) else None
@@ -136,14 +140,12 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
                     elif idx_rychlost is not None and m_ted[idx_rychlost] is not None:
                         r_ms = m_ted[idx_rychlost]
                         if r_ms < 0.5:
-                            v_rychlem_useku = False
+                            if aktualni_rychly_usek >= 8.0:
+                                rychle_useky_delky.append(aktualni_rychly_usek)
+                            aktualni_rychly_usek = 0.0
                             continue
 
                         sklon = 0.0
-                        prevyseni_krok = 0.0
-                        if idx_vyska is not None and m_ted[idx_vyska] is not None and m_pred[idx_vyska] is not None:
-                            prevyseni_krok = max(0.0, m_ted[idx_vyska] - m_pred[idx_vyska])
-
                         if pouzit_gap and idx_vyska is not None and m_ted[idx_vyska] is not None:
                             historie_vysky.append((c_ted / 1000.0, m_ted[idx_vyska], r_ms * rozdil))
                             while len(historie_vysky) > 1 and (historie_vysky[-1] - historie_vysky) > 10.0:
@@ -174,29 +176,44 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
                         else:
                             beh_seda += rozdil
 
-                    # Počítání rychlých úseků a nastoupaných metrů v rychlosti (pro rozpoznání Intervalů vs. Kopců)
                     if je_ted_rychle:
+                        aktualni_rychly_usek += rozdil
                         if idx_vyska is not None and m_ted[idx_vyska] is not None and m_pred[idx_vyska] is not None:
                             nastoupano_v_rychlosti += max(0.0, m_ted[idx_vyska] - m_pred[idx_vyska])
-                        if not v_rychlem_useku:
-                            rychle_useky_pocet += 1
-                            v_rychlem_useku = True
                     else:
-                        v_rychlem_useku = False
+                        if aktualni_rychly_usek >= 8.0:
+                            rychle_useky_delky.append(aktualni_rychly_usek)
+                        aktualni_rychly_usek = 0.0
+
+                if aktualni_rychly_usek >= 8.0:
+                    rychle_useky_delky.append(aktualni_rychly_usek)
 
         # --- AUTOMATICKÉ URČENÍ ŠTÍTKU TRÉNINKU ---
         typ_treninku = "🏋️ POSILOVÁNÍ"
         if kategorie == "🏃 Běh":
             celkem_sec = beh_objem + beh_seda + beh_rychlost
             podil_rychlosti = (beh_rychlost / celkem_sec) if celkem_sec > 0 else 0
+            prumerna_delka_useku = (sum(rychle_useky_delky) / len(rychle_useky_delky)) if rychle_useky_delky else 0
+            nejdelsi_usek = max(rychle_useky_delky) if rychle_useky_delky else 0
+            kratke_rovinky = [d for d in rychle_useky_delky if 8.0 <= d <= 40.0]
 
-            if pouzit_tep_rezim:
+            # Závod: označený v názvu/Garminu, nebo souvislý max. výkon (15+ min v kuse a > 65 % celého běhu)
+            je_zavod_vykon = (nejdelsi_usek >= 900.0 and podil_rychlosti >= 0.65)
+
+            if je_zavod_nazev or je_zavod_vykon:
+                typ_treninku = "🏆 ZÁVOD (OB)" if pouzit_tep_rezim else "🏆 ZÁVOD"
+            elif pouzit_tep_rezim:
                 typ_treninku = "🧭 OB (Orienťák)"
             elif 'kopce' in nazev_lower or (nastoupano_v_rychlosti >= 45 and podil_rychlosti >= 0.12):
                 typ_treninku = "⛰️ KOPCE"
             elif podil_rychlosti < 0.12:
-                typ_treninku = "🟢 OBJEM"
-            elif rychle_useky_pocet >= 4:
+                if len(kratke_rovinky) >= 2:
+                    typ_treninku = "🟢 OBJEM +STRIDES"
+                else:
+                    typ_treninku = "🟢 OBJEM"
+            elif prumerna_delka_useku >= 180.0:
+                typ_treninku = "🔥 TEMPO (Prahový)"
+            elif len(rychle_useky_delky) >= 4:
                 typ_treninku = "⚡ INTERVALY (VO2max)"
             else:
                 typ_treninku = "🔥 TEMPO (Prahový)"
@@ -212,7 +229,8 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
             "Objem (min)": round(beh_objem / 60, 1),
             "Šedá (min)": round(beh_seda / 60, 1),
             "Rychlost (min)": round(beh_rychlost / 60, 1),
-            "Celkem (min)": round((beh_objem + beh_seda + beh_rychlost) / 60, 1) if kategorie == "🏃 Běh" else celkovy_cas_min
+            "Celkem (min)": round((beh_objem + beh_seda + beh_rychlost) / 60, 1) if kategorie == "🏃 Běh" else celkovy_cas_min,
+            "Převýšení (m)": prevyseni_celkem if kategorie == "🏃 Běh" else 0
         })
 
     return pd.DataFrame(seznam_aktivit)
