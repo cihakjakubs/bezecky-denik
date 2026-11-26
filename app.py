@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 from datetime import datetime, timedelta
 from garminconnect import Garmin
 
@@ -178,14 +179,27 @@ if stranka == "📊 Dashboard":
                     
                     st.divider()
                     
-                    # Graf rozložení běžeckých zón
-                    st.subheader("Rozložení běžeckých zón (minuty)")
-                    graf_data = pd.DataFrame({
-                        "Zóna": ["🟢 Objem", "🟡 Šedá zóna", "🔴 Rychlost"],
-                        "Minuty": [objem, seda, rychlost]
-                    }).set_index("Zóna")
-                    st.bar_chart(graf_data)
-                    
+                    # Graf rozložení běžeckých zón (Koláčový / Donut graf)
+                   st.subheader("Rozložení běžeckých zón")
+                   graf_data = pd.DataFrame({
+                       "Zóna": ["🟢 Objem", "🟡 Šedá zóna", "🔴 Rychlost"],
+                       "Minuty": [objem, seda, rychlost]
+                   })
+                   fig = px.pie(
+                       graf_data, 
+                       values="Minuty", 
+                       names="Zóna", 
+                       color="Zóna",
+                       color_discrete_map={
+                           "🟢 Objem": "#2ecc71",
+                           "🟡 Šedá zóna": "#f1c40f",
+                           "🔴 Rychlost": "#e74c3c"
+                       },
+                       hole=0.45
+                   )
+                   fig.update_traces(textposition="inside", textinfo="percent+label")
+                   st.plotly_chart(fig, use_container_width=True)
+              
             except Exception as e:
                 st.error(f"Chyba při komunikaci s Garminem: {e}")
 
