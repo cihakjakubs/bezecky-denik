@@ -8,8 +8,11 @@ from supabase import create_client
 
 @st.cache_resource
 def init_supabase():
-    url = st.secrets.get("SUPABASE_URL", "")
-    key = st.secrets.get("SUPABASE_KEY", "")
+    url = st.secrets.get("SUPABASE_URL", "").strip()
+    key = st.secrets.get("SUPABASE_KEY", "").strip()
+    if "/rest/v1" in url:
+        url = url.split("/rest/v1")
+    url = url.rstrip("/")
     if url and key:
         return create_client(url, key)
     return None
