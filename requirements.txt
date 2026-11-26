@@ -2,3 +2,4 @@ streamlit
 garminconnect
 pandas
 plotly
+streamlit-option-menu
