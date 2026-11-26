@@ -46,7 +46,7 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly):
     for akt in aktivity:
         typ = akt.get('activityType', {}).get('typeKey', '')
         
-             if 'running' not in typ and 'strength' not in typ and 'cardio' not in typ and 'fitness' not in typ:
+        if 'running' not in typ and 'strength' not in typ and 'cardio' not in typ and 'fitness' not in typ:
          continue
 
      aid = akt['activityId']
