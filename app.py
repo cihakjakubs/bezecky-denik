@@ -567,6 +567,4 @@ elif stranka == "Nastavení zón":
 # ==========================================
 elif stranka == "Budoucí deník":
     st.title("📝 Tréninkový deník (Připraveno k rozšíření)")
-    st.info("Tato sekce je připravená pro budoucí napojení databáze Supabase:")
-    st.markdown("""
-    * **Subjektivní pocity (RPE 1–10)** a poznámky ke každému tréninku
+    st.info("Databáze Supabase je připojená a připravená pro přidání hodnocení pocitů (RPE), poznámek k tréninkům a sledování naběhaných kilometrů v botách.")
