@@ -228,6 +228,8 @@ elif stranka == "⚙️ Nastavení zón":
     with col4:
         st.session_state.cil_posilovani_tyden = st.number_input("Cíl posilování (tréninků za týden)", 0, 7, st.session_state.cil_posilovani_tyden)
         st.session_state.dni_zpet = st.selectbox("Délka klouzavého okna (dny)", [7, 14, 30], index=[7, 14, 30].index(st.session_state.dni_zpet))
+    
+    st.session_state.limit_seda_pct = st.slider("Maximální tolerance šedé zóny (% z běhu)", 0, 25, st.session_state.limit_seda_pct)
 
 # ==========================================
 # STRÁNKA 4: BUDOUCÍ TRÉNINKOVÝ DENÍK
