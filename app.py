@@ -30,6 +30,7 @@ if "pomaly_min" not in st.session_state:
     st.session_state.tolerance_pct = 3        # Tolerance ±3 %
     st.session_state.dni_zpet = 14
     st.session_state.cil_posilovani_tyden = 1 # Cíl: 1x týdně
+    st.session_state.limit_seda_pct = 5       # Limit pro šedou zónu (5 %)
 
 @st.cache_data(ttl=1800)
 def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly):
@@ -160,6 +161,10 @@ if stranka == "📊 Dashboard":
                         st.warning(f"⚠️ **Hodně rychlosti ({akt_rych_pct} %):** Překročil jsi horní hranici ({max_rychlost_pct} %). Zařaď cca **{round(chybi_objem, 1)} min** volného objemu.")
                     else:
                         st.success(f"✅ **Ideální poměr ({akt_obj_pct} : {akt_rych_pct})!** Držíš se v cílovém rozmezí {st.session_state.cil_objem}:{cil_rychlost_pct} (tolerance ±{tol} %).")
+                                        # --- VAROVÁNÍ PRO ŠEDOU ZÓNU ---
+                    if seda_pct > st.session_state.limit_seda_pct:
+                        st.warning(f"⚠️ **Pozor na šedou zónu ({seda_pct} %):** Překročil jsi nastavený limit {st.session_state.limit_seda_pct} % z celkového času běhu. Zkus volné běhy více zpomalit.")
+                    
                     # Metriky v 5 sloupcích
                     c1, c2, c3, c4, c5 = st.columns(5)
                     c1.metric("🟢 Objem (běh)", f"{round(objem, 1)} min", f"{akt_obj_pct} % (cíl {st.session_state.cil_objem} ±{tol}%)")
