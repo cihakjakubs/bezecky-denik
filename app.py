@@ -175,15 +175,15 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
 
                         sklon = 0.0
                         if pouzit_gap and idx_vyska is not None and m_ted[idx_vyska] is not None:
-                            historie_vysky.append((c_ted / 1000.0, m_ted[idx_vyska], r_ms * rozdil))
-                            while len(historie_vysky) > 1 and (historie_vysky[-1] - historie_vysky) > 10.0:
-                                historie_vysky.pop(0)
-                            
-                            if len(historie_vysky) >= 2:
-                                prevyseni_10s = historie_vysky[-1] - historie_vysky
-                                vzdalenost_10s = sum(x for x in historie_vysky[1:])
-                                if vzdalenost_10s > 5.0:
-                                    sklon = max(-0.25, min(0.25, prevyseni_10s / vzdalenost_10s))
+                         historie_vysky.append((c_ted / 1000.0, m_ted[idx_vyska], r_ms * rozdil))
+                         while len(historie_vysky) > 1 and (historie_vysky[-1][0] - historie_vysky[0][0]) > 10.0:
+                             historie_vysky.pop(0)
+
+                         if len(historie_vysky) >= 2:
+                             prevyseni_10s = historie_vysky[-1][1] - historie_vysky[0][1]
+                             vzdalenost_10s = sum(x[2] for x in historie_vysky[1:])
+                             if vzdalenost_10s > 5.0:
+                                 sklon = max(-0.25, min(0.25, prevyseni_10s / vzdalenost_10s))
 
                         efektivni_rychlost = r_ms
                         if pouzit_gap and sklon > 0.025:
