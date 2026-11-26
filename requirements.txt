@@ -3,3 +3,4 @@ garminconnect
 pandas
 plotly
 streamlit-option-menu
+supabase
