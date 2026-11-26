@@ -4,17 +4,63 @@ import plotly.express as px
 from streamlit_option_menu import option_menu
 from datetime import datetime, timedelta
 from garminconnect import Garmin
+from supabase import create_client
 
 st.set_page_config(page_title="Běžecký Deník", page_icon="🏃", layout="wide")
+
+# --- PŘIPOJENÍ K DATABÁZI SUPABASE ---
+@st.cache_resource
+def init_supabase():
+    url = st.secrets.get("SUPABASE_URL", "")
+    key = st.secrets.get("SUPABASE_KEY", "")
+    if url and key:
+        return create_client(url, key)
+    return None
+
+supabase = init_supabase()
+
+def nacti_nastaveni_z_db():
+    if supabase:
+        try:
+            res = supabase.table("nastaveni").select("*").eq("id", 1).execute()
+            if res.data:
+                return res.data
+        except Exception:
+            pass
+    return {
+        "pomaly_min": 5, "pomaly_sec": 15,
+        "rychly_min": 4, "rychly_sec": 15,
+        "cil_objem": 80, "tolerance_pct": 3,
+        "dni_zpet": 14, "cil_posilovani_tyden": 1,
+        "limit_seda_pct": 5, "tep_objem_max": 148,
+        "tep_rychlost_min": 168, "zapnout_gap": True
+    }
+
+def nacti_teren_ids_z_db():
+    if supabase:
+        try:
+            res = supabase.table("aktivity_poznamky").select("activity_id").eq("je_teren_ob", True).execute()
+            return [r["activity_id"] for r in res.data]
+        except Exception:
+            pass
+    return []
+
+if "db_nacteno" not in st.session_state:
+    db_data = nacti_nastaveni_z_db()
+    for klic, hodnota in db_data.items():
+        if klic != "id":
+            st.session_state[klic] = hodnota
+    st.session_state.rucni_teren_ids = nacti_teren_ids_z_db()
+    st.session_state.db_nacteno = True
 
 # --- BOČNÍ MENU ---
 with st.sidebar:
     st.title("🏃 Běžecký Deník")
     stranka = option_menu(
-            menu_title=None,
-            options=["Dashboard", "Plánovač", "Deník aktivit", "Nastavení zón", "Budoucí deník"],
-            icons=["speedometer2", "calendar-plus", "activity", "gear", "journal-text"],
-            default_index=0,
+        menu_title=None,
+        options=["Dashboard", "Plánovač", "Deník aktivit", "Nastavení zón", "Budoucí deník"],
+        icons=["speedometer2", "calendar-plus", "activity", "gear", "journal-text"],
+        default_index=0,
         styles={
             "container": {"padding": "0!important", "background-color": "transparent"},
             "icon": {"font-size": "18px"},
@@ -22,7 +68,6 @@ with st.sidebar:
             "nav-link-selected": {"background-color": "#e74c3c", "font-weight": "bold"},
         }
     )
-
 
 st.sidebar.divider()
 st.sidebar.subheader("🔐 Připojení Garmin")
@@ -32,29 +77,11 @@ default_heslo = st.secrets.get("GARMIN_HESLO", "")
 email = st.sidebar.text_input("Garmin E-mail", value=default_email)
 heslo = st.sidebar.text_input("Garmin Heslo", value=default_heslo, type="password")
 
-# Výchozí hodnoty nastavení
-# Výchozí hodnoty nastavení
-if "pomaly_min" not in st.session_state:
-    st.session_state.pomaly_min = 5
-    st.session_state.pomaly_sec = 15
-    st.session_state.rychly_min = 4
-    st.session_state.rychly_sec = 15
-    st.session_state.cil_objem = 80
-    st.session_state.tolerance_pct = 3        # Tolerance ±3 %
-    st.session_state.dni_zpet = 14
-    st.session_state.cil_posilovani_tyden = 1 # Cíl: 1x týdně
-
-if "limit_seda_pct" not in st.session_state:
-    st.session_state.limit_seda_pct = 5       # Limit pro šedou zónu (5 %)
-
-if "tep_objem_max" not in st.session_state:
-    st.session_state.tep_objem_max = 148      # Tep pod tuto hranici = Objem v terénu
-    st.session_state.tep_rychlost_min = 168   # Tep nad tuto hranici = Rychlost v terénu
-    st.session_state.zapnout_gap = True       # Automatický přepočet kopců (GAP)
-
-if "rucni_teren_ids" not in st.session_state:
-    st.session_state.rucni_teren_ids = []
-
+if supabase:
+    st.sidebar.success("🟢 Databáze připojena")
+else:
+    st.sidebar.warning("🟡 Databáze nepřipojena")
+# --- VÝPOČETNÍ MOTOR PRO GARMIN DATA ---
 @st.cache_data(ttl=1800)
 def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep_obj, tep_rych, pouzit_gap, rucni_teren_ids):
     client = Garmin(user_email, user_pass)
@@ -126,7 +153,6 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
                     hr_ted = m_ted[idx_tep] if (idx_tep is not None and m_ted[idx_tep] is not None) else None
                     je_ted_rychle = False
 
-                    # --- REŽIM A: OB / TERÉN (PODLE TEPU) ---
                     if pouzit_tep_rezim and hr_ted is not None:
                         if hr_ted <= tep_obj:
                             beh_objem += rozdil
@@ -136,7 +162,6 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
                         else:
                             beh_seda += rozdil
 
-                    # --- REŽIM B: SILNICE (POROVNÁNÍ TEP × TEMPO + 10s KOPCE) ---
                     elif idx_rychlost is not None and m_ted[idx_rychlost] is not None:
                         r_ms = m_ted[idx_rychlost]
                         if r_ms < 0.5:
@@ -187,9 +212,7 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
 
                 if aktualni_rychly_usek >= 8.0:
                     rychle_useky_delky.append(aktualni_rychly_usek)
-
-        # --- AUTOMATICKÉ URČENÍ ŠTÍTKU TRÉNINKU ---
-        typ_treninku = "🏋️ POSILOVÁNÍ"
+        typ_treninku = "🏋️ POSILOVÁNÍ"      
         if kategorie == "🏃 Běh":
             celkem_sec = beh_objem + beh_seda + beh_rychlost
             podil_rychlosti = (beh_rychlost / celkem_sec) if celkem_sec > 0 else 0
@@ -197,7 +220,6 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
             nejdelsi_usek = max(rychle_useky_delky) if rychle_useky_delky else 0
             kratke_rovinky = [d for d in rychle_useky_delky if 8.0 <= d <= 40.0]
 
-            # Závod: označený v názvu/Garminu, nebo souvislý max. výkon (15+ min v kuse a > 65 % celého běhu)
             je_zavod_vykon = (nejdelsi_usek >= 900.0 and podil_rychlosti >= 0.65)
 
             if je_zavod_nazev or je_zavod_vykon:
@@ -240,6 +262,73 @@ lim_rychly_sec = st.session_state.rychly_min * 60 + st.session_state.rychly_sec
 
 if st.sidebar.button("🔄 Synchronizovat z Garminu", use_container_width=True):
     st.cache_data.clear()
+
+# ==========================================
+# STRÁNKA 1: DASHBOARD
+# ==========================================
+if stranka == "Dashboard":
+    st.title(f"📊 Přehled za posledních {st.session_state.dni_zpet} dní")
+
+    if not email or not heslo:
+        st.warning("👈 Zadej v levém menu svůj Garmin e-mail a heslo pro načtení dat.")
+    else:
+        with st.spinner("Stahuji běhy a silové tréninky z Garmin Connect..."):
+            try:
+                df = nacti_data_z_garminu(
+                    email, heslo, st.session_state.dni_zpet,
+                    lim_pomaly_sec, lim_rychly_sec,
+                    st.session_state.tep_objem_max, st.session_state.tep_rychlost_min,
+                    st.session_state.zapnout_gap, tuple(st.session_state.rucni_teren_ids)
+                )
+
+                if df.empty:
+                    st.info("Za zvolené období nebyly nalezeny žádné aktivity.")
+                else:
+                    df_behy = df[df["Typ"] == "🏃 Běh"]
+                    df_posilovani = df[df["Typ"] == "🏋️ Posilování"]
+
+                    objem = df_behy["Objem (min)"].sum()
+                    seda = df_behy["Šedá (min)"].sum()
+                    rychlost = df_behy["Rychlost (min)"].sum()
+                    celkem_beh_min = objem + seda + rychlost
+                    polarizovane = objem + rychlost
+
+                    cil_rychlost_pct = 100 - st.session_state.cil_objem
+                    tol = st.session_state.tolerance_pct
+                    min_rychlost_pct = max(1, cil_rychlost_pct - tol)
+                    max_rychlost_pct = min(99, cil_rychlost_pct + tol)
+
+                    akt_obj_pct = round((objem / polarizovane) * 100, 1) if polarizovane > 0 else 0
+                    akt_rych_pct = round((rychlost / polarizovane) * 100, 1) if polarizovane > 0 else 0
+                    seda_pct = round((seda / celkem_beh_min) * 100, 1) if celkem_beh_min > 0 else 0
+
+                    pocet_posilovani = len(df_posilovani)
+                    cas_posilovani = df_posilovani["Celkem (min)"].sum()
+                    cil_posilovani_obdobi = round((st.session_state.dni_zpet / 7) * st.session_state.cil_posilovani_tyden)
+
+                    if polarizovane == 0:
+                        st.info("Zatím nemáš žádné minuty v objemu ani v rychlosti.")
+                    elif akt_rych_pct < min_rychlost_pct:
+                        potrebna_min_rychlost = objem * (min_rychlost_pct / (100 - min_rychlost_pct))
+                        chybi_rychlost = potrebna_min_rychlost - rychlost
+                        st.error(f"🎯 **Málo rychlosti ({akt_rych_pct} %):** Do cílového rozmezí ({min_rychlost_pct}–{max_rychlost_pct} %) ti chybí **{round(chybi_rychlost, 1)} min** v rychlosti.")
+                    elif akt_rych_pct > max_rychlost_pct:
+                        potrebny_min_objem = rychlost * ((100 - max_rychlost_pct) / max_rychlost_pct)
+                        chybi_objem = potrebny_min_objem - objem
+                        st.warning(f"⚠️ **Hodně rychlosti ({akt_rych_pct} %):** Překročil jsi horní hranici ({max_rychlost_pct} %). Zařaď cca **{round(chybi_objem, 1)} min** volného objemu.")
+                    else:
+                        st.success(f"✅ **Ideální poměr ({akt_obj_pct} : {akt_rych_pct})!** Držíš se v cílovém rozmezí {st.session_state.cil_objem}:{cil_rychlost_pct} (tolerance ±{tol} %).")
+
+                    if seda_pct > st.session_state.limit_seda_pct:
+                        st.warning(f"⚠️ **Pozor na šedou zónu ({seda_pct} %):** Překročil jsi limit {st.session_state.limit_seda_pct} % z běhu.")
+
+                    c1, c2, c3, c4, c5 = st.columns(5)
+                    c1.metric("🟢 Objem (běh)", f"{round(objem, 1)} min", f"{akt_obj_pct} % (cíl {st.session_state.cil_objem} ±{tol}%)")
+                    c2.metric("🔴 Rychlost (běh)", f"{round(rychlost, 1)} min", f"{akt_rych_pct} % (cíl {cil_rychlost_pct} ±{tol}%)")
+                    c3.metric("🟡 Šedá zóna", f"{round(seda, 1)} min", f"{seda_pct} % z běhu (limit {st.session_state.limit_seda_pct} %)", delta_color="off")
+                    c4.metric("🏋️ Posilování", f"{pocet_posilovani} / {cil_posilovani_obdobi} trén.", f"{round(cas_posilovani, 1)} min celkem")
+                    c5.metric("⏱️ Celkem aktivně", f"{round(celkem_beh_min + cas_posilovani, 1)} min", f"{round(df_behy['Vzdálenost (km)'].sum(), 1)} km běh")
+
 
 # ==========================================
 # STRÁNKA 1: DASHBOARD
