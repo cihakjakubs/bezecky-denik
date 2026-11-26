@@ -191,9 +191,9 @@ if stranka == "📊 Dashboard":
                         names="Zóna",
                         color="Zóna",
                         color_discrete_map={
-                            "🟢 Objem": "#2ecc71",
-                            "🟡 Šedá zóna": "#f1c40f",
-                            "🔴 Rychlost": "#e74c3c"
+                            "🟢": "#2ecc71",
+                            "🟡": "#f1c40f",
+                            "🔴": "#e74c3c"
                         },
                         hole=0.45
                     )
