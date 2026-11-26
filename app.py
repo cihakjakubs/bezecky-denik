@@ -195,7 +195,7 @@ if stranka == "📊 Dashboard":
                             "🟡 Šedá zóna": "#f1c40f",
                             "🔴 Rychlost": "#e74c3c"
                         },
-                        hole=0
+                        hole=0.7
                     )
                     fig.update_traces(
                         textinfo="none",
