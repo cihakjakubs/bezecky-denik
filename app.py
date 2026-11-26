@@ -26,7 +26,7 @@ if "db_nacteno" not in st.session_state:
         try:
             res = supabase.table("nastaveni").select("*").eq("id", 1).execute()
             if res.data:
-                for klic, hodnota in res.data.items():
+                for klic, hodnota in res.data[0].items():
                     if klic != "id":
                         st.session_state[klic] = hodnota
             res_ob = supabase.table("aktivity_poznamky").select("activity_id").eq("je_teren_ob", True).execute()
