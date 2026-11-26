@@ -380,9 +380,80 @@ if stranka == "Dashboard":
 
             except Exception as e:
                 st.error(f"Chyba při komunikaci s Garminem: {e}")
-
+                
 # ==========================================
-# STRÁNKA 2: DENÍK AKTIVIT
+# STRÁNKA 2: PLÁNOVAČ TRÉNINKŮ
+# ==========================================
+elif stranka == "Plánovač":
+    st.title("🔮 Plánovač tréninků (Co kdyby...)")
+
+    if not email or not heslo:
+        st.warning("👈 Nejdříve se přihlas v levém menu.")
+    else:
+        df = nacti_data_z_garminu(
+            email, heslo, st.session_state.dni_zpet,
+            lim_pomaly_sec, lim_rychly_sec,
+            st.session_state.tep_objem_max, st.session_state.tep_rychlost_min,
+            st.session_state.zapnout_gap, tuple(st.session_state.rucni_teren_ids)
+        )
+        df_behy = df[df["Typ"] == "🏃 Běh"] if not df.empty else pd.DataFrame()
+
+        objem = df_behy["Objem (min)"].sum() if not df_behy.empty else 0.0
+        rychlost = df_behy["Rychlost (min)"].sum() if not df_behy.empty else 0.0
+
+        st.info(f"📊 **Aktuální základ (za posledních {st.session_state.dni_zpet} dní):** {round(objem, 1)} min objemu a {round(rychlost, 1)} min rychlosti.")
+        st.divider()
+
+        st.subheader("1️⃣ Naklikej si plánované tréninky dopředu")
+        pocet_planu = st.number_input("Kolik tréninků chceš nasimulovat?", 1, 7, 2)
+
+        plan_objem_celkem = 0
+        plan_rychlost_celkem = 0
+
+        for i in range(int(pocet_planu)):
+            with st.container():
+                c_nazev, c_obj, c_rych = st.columns([1.5, 1, 1])
+                c_nazev.text_input(f"Trénink #{i+1}", value=f"Plánovaný běh {i+1}", key=f"plan_nazev_{i}")
+                p_obj = c_obj.number_input("Objem (min)", 0, 240, 45 if i == 0 else 25, step=5, key=f"plan_obj_{i}")
+                p_rych = c_rych.number_input("Rychlost (min)", 0, 120, 0 if i == 0 else 20, step=5, key=f"plan_rych_{i}")
+                plan_objem_celkem += p_obj
+                plan_rychlost_celkem += p_rych
+
+        st.divider()
+
+        # --- VÝPOČET VÝSLEDKU PO PLÁNU ---
+        novy_objem = objem + plan_objem_celkem
+        nova_rychlost = rychlost + plan_rychlost_celkem
+        nove_polarizovane = novy_objem + nova_rychlost
+
+        st.subheader("2️⃣ Výsledek po splnění plánu")
+        m1, m2, m3 = st.columns(3)
+        m1.metric("🟢 Nový objem", f"{round(novy_objem, 1)} min", f"+{plan_objem_celkem} min")
+        m2.metric("🔴 Nová rychlost", f"{round(nova_rychlost, 1)} min", f"+{plan_rychlost_celkem} min")
+
+        if nove_polarizovane > 0:
+            novy_rychlost_pct = round((nova_rychlost / nove_polarizovane) * 100, 1)
+            novy_objem_pct = round(100 - novy_rychlost_pct, 1)
+            m3.metric("⚖️ Nový poměr", f"{novy_objem_pct} : {novy_rychlost_pct}", f"Cíl {st.session_state.cil_objem}:{100 - st.session_state.cil_objem}")
+
+            cil_rychlost_pct = 100 - st.session_state.cil_objem
+            tol = st.session_state.tolerance_pct
+            min_r = max(1, cil_rychlost_pct - tol)
+            max_r = min(99, cil_rychlost_pct + tol)
+
+            if min_r <= novy_rychlost_pct <= max_r:
+                st.success(f"✅ **Perfektní plán!** Trefíš se přesně do cílového pásma ({min_r}–{max_r} % rychlosti).")
+            elif novy_rychlost_pct < min_r:
+                potrebna_r = novy_objem * (min_r / (100 - min_r))
+                chybi_r = potrebna_r - nova_rychlost
+                st.warning(f"🎯 **Po tomto plánu ti bude stále chybět {round(chybi_r, 1)} min rychlosti**, aby ses dostal na spodní hranici ({min_r} %).")
+            else:
+                potrebny_o = nova_rychlost * ((100 - max_r) / max_r)
+                chybi_o = potrebny_o - novy_objem
+                st.error(f"⚠️ **Pozor, moc rychlosti!** Překročíš horní hranici ({max_r} %). Přidej do plánu ještě cca **{round(chybi_o, 1)} min** volného objemu.")
+                
+# ==========================================
+# STRÁNKA 3: DENÍK AKTIVIT
 # ==========================================
 elif stranka == "Deník aktivit":
     st.title("🏃 Seznam stažených aktivit")
@@ -409,7 +480,7 @@ elif stranka == "Deník aktivit":
         st.warning("👈 Nejdříve se přihlas v levém menu.")
 
 # ==========================================
-# STRÁNKA 3: NASTAVENÍ ZÓN
+# STRÁNKA 4: NASTAVENÍ ZÓN
 # ==========================================
 elif stranka == "Nastavení zón":
     st.title("⚙️ Nastavení zón a tréninkových cílů")
@@ -449,7 +520,7 @@ elif stranka == "Nastavení zón":
     st.session_state.tep_objem_max = col_t1.number_input("Max. tep pro Objem v terénu (bpm)", 100, 180, st.session_state.tep_objem_max)
     st.session_state.tep_rychlost_min = col_t2.number_input("Min. tep pro Rychlost v terénu (bpm)", 130, 210, st.session_state.tep_rychlost_min)
 # ==========================================
-# STRÁNKA 4: BUDOUCÍ TRÉNINKOVÝ DENÍK
+# STRÁNKA 5: BUDOUCÍ TRÉNINKOVÝ DENÍK
 # ==========================================
 elif stranka == "Budoucí deník":
     st.title("📝 Tréninkový deník (Připraveno k rozšíření)")
