@@ -47,21 +47,29 @@ if "pomaly_min" not in st.session_state:
 if "limit_seda_pct" not in st.session_state:
     st.session_state.limit_seda_pct = 5       # Limit pro šedou zónu (5 %)
 
+if "tep_objem_max" not in st.session_state:
+    st.session_state.tep_objem_max = 148      # Tep pod tuto hranici = Objem v terénu
+    st.session_state.tep_rychlost_min = 168   # Tep nad tuto hranici = Rychlost v terénu
+    st.session_state.zapnout_gap = True       # Automatický přepočet kopců (GAP)
+
+if "rucni_teren_ids" not in st.session_state:
+    st.session_state.rucni_teren_ids = []
+
 @st.cache_data(ttl=1800)
-def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly):
+def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep_obj, tep_rych, pouzit_gap, rucni_teren_ids):
     client = Garmin(user_email, user_pass)
     client.login()
-    
+
     dnes = datetime.now()
     od_data = (dnes - timedelta(days=dni)).strftime("%Y-%m-%d")
     do_data = dnes.strftime("%Y-%m-%d")
-    
+
     aktivity = client.get_activities_by_date(od_data, do_data)
     seznam_aktivit = []
-    
+
     for akt in aktivity:
         typ = akt.get('activityType', {}).get('typeKey', '')
-        
+
         if 'running' not in typ and 'strength' not in typ and 'cardio' not in typ and 'fitness' not in typ:
             continue
 
@@ -75,37 +83,80 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly):
         beh_objem, beh_seda, beh_rychlost = 0, 0, 0
         kategorie = "🏃 Běh" if 'running' in typ else "🏋️ Posilování"
 
+        # Zjistíme, zda jde o terénní běh / orienťák (automaticky nebo ručně)
+        nazev_lower = nazev.lower()
+        je_teren_auto = ('trail' in typ) or any(slovo in nazev_lower for slovo in ['trail', 'ob', 'orienťák', 'orientak', 'les', 'sníh', 'snih'])
+        pouzit_tep_rezim = (aid in rucni_teren_ids) or je_teren_auto
 
-        
         if kategorie == "🏃 Běh":
             detaily = client.get_activity_details(aid)
             popisy = [d['key'] for d in detaily['metricDescriptors']]
-            
-            if 'directTimestamp' in popisy and 'directSpeed' in popisy:
+
+            if 'directTimestamp' in popisy:
                 idx_cas = popisy.index('directTimestamp')
-                idx_rychlost = popisy.index('directSpeed')
+                idx_rychlost = popisy.index('directSpeed') if 'directSpeed' in popisy else None
+                idx_vyska = popisy.index('directElevation') if 'directElevation' in popisy else None
+                idx_tep = popisy.index('directHeartRate') if 'directHeartRate' in popisy else None
+
                 vzorky = detaily['activityDetailMetrics']
-                
+
                 for i in range(1, len(vzorky)):
                     m_ted = vzorky[i]['metrics']
                     m_pred = vzorky[i-1]['metrics']
-                    c_ted, c_pred, r_ms = m_ted[idx_cas], m_pred[idx_cas], m_ted[idx_rychlost]
-                    
-                    if c_ted and c_pred and r_ms is not None:
-                        rozdil = (c_ted - c_pred) / 1000.0
-                        if rozdil > 10 or r_ms < 0.5:
+                    c_ted, c_pred = m_ted[idx_cas], m_pred[idx_cas]
+
+                    if not c_ted or not c_pred:
+                        continue
+
+                    rozdil = (c_ted - c_pred) / 1000.0
+                    if rozdil > 10:
+                        continue
+
+                    # --- REŽIM A: TERÉN / ORIENŤÁK / SNÍH (PODLE TEPU) ---
+                    if pouzit_tep_rezim and idx_tep is not None and m_ted[idx_tep] is not None:
+                        hr_ted = m_ted[idx_tep]
+                        if hr_ted <= tep_obj:
+                            beh_objem += rozdil
+                        elif hr_ted >= tep_rych:
+                            beh_rychlost += rozdil
+                        else:
+                            beh_seda += rozdil
+
+                    # --- REŽIM B: SILNICE S KOREKCÍ KOPCŮ (GAP) ---
+                    elif idx_rychlost is not None and m_ted[idx_rychlost] is not None:
+                        r_ms = m_ted[idx_rychlost]
+                        if r_ms < 0.5:
                             continue
-                        tempo = 1000.0 / r_ms
+
+                        efektivni_rychlost = r_ms
+
+                        # Přepočet sklonu kopce (GAP)
+                        if pouzit_gap and idx_vyska is not None and m_ted[idx_vyska] is not None and m_pred[idx_vyska] is not None:
+                            vzdalenost_useku = r_ms * rozdil
+                            if vzdalenost_useku > 1.0:
+                                prevyseni = m_ted[idx_vyska] - m_pred[idx_vyska]
+                                sklon = max(-0.25, min(0.25, prevyseni / vzdalenost_useku)) # omezení extrémů GPS
+                                # Do kopce přidá ekvivalentní rychlost, z kopce mírně ubere
+                                koeficient = 1 + (sklon * 3.3) if sklon >= 0 else 1 + (sklon * 1.5)
+                                efektivni_rychlost = r_ms * max(0.7, koeficient)
+
+                        tempo = 1000.0 / efektivni_rychlost
                         if tempo >= lim_pomaly:
                             beh_objem += rozdil
                         elif tempo <= lim_rychly:
                             beh_rychlost += rozdil
                         else:
                             beh_seda += rozdil
-                            
+
+        rezim_text = "-"
+        if kategorie == "🏃 Běh":
+            rezim_text = "🌲 Terén/OB (Tep)" if pouzit_tep_rezim else ("⛰️ Silnice + Kopce" if pouzit_gap else "🛣️ Silnice (Tempo)")
+
         seznam_aktivit.append({
+            "ID": aid,
             "Datum": datum,
             "Typ": kategorie,
+            "Režim": rezim_text,
             "Název": nazev,
             "Vzdálenost (km)": vzdalenost if kategorie == "🏃 Běh" else 0.0,
             "Prům. tep": tep,
@@ -114,7 +165,7 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly):
             "Rychlost (min)": round(beh_rychlost / 60, 1),
             "Celkem (min)": round((beh_objem + beh_seda + beh_rychlost) / 60, 1) if kategorie == "🏃 Běh" else celkovy_cas_min
         })
-        
+
     return pd.DataFrame(seznam_aktivit)
 
 lim_pomaly_sec = st.session_state.pomaly_min * 60 + st.session_state.pomaly_sec
@@ -134,7 +185,12 @@ if stranka == "Dashboard":
     else:
         with st.spinner("Stahuji běhy a silové tréninky z Garmin Connect..."):
             try:
-                df = nacti_data_z_garminu(email, heslo, st.session_state.dni_zpet, lim_pomaly_sec, lim_rychly_sec)
+                df = nacti_data_z_garminu(
+    email, heslo, st.session_state.dni_zpet,
+    lim_pomaly_sec, lim_rychly_sec,
+    st.session_state.tep_objem_max, st.session_state.tep_rychlost_min,
+    st.session_state.zapnout_gap, tuple(st.session_state.rucni_teren_ids)
+)
                 
                 if df.empty:
                     st.info("Za zvolené období nebyly nalezeny žádné aktivity.")
@@ -264,8 +320,24 @@ if stranka == "Dashboard":
 elif stranka == "Deník aktivit":
     st.title("🏃 Seznam stažených aktivit")
     if email and heslo:
-        df = nacti_data_z_garminu(email, heslo, st.session_state.dni_zpet, lim_pomaly_sec, lim_rychly_sec)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        df = nacti_data_z_garminu(
+            email, heslo, st.session_state.dni_zpet,
+            lim_pomaly_sec, lim_rychly_sec,
+            st.session_state.tep_objem_max, st.session_state.tep_rychlost_min,
+            st.session_state.zapnout_gap, tuple(st.session_state.rucni_teren_ids)
+        )
+        st.dataframe(df.drop(columns=["ID"]), use_container_width=True, hide_index=True)
+
+        st.divider()
+        st.subheader("🌲 Přepnout běh na režim Terén / Orienťák / Sníh (podle tepu)")
+        behy_jen = df[df["Typ"] == "🏃 Běh"]
+        moznosti = {f"{r['Datum']} – {r['Název']}": r["ID"] for _, r in behy_jen.iterrows()}
+        vybrane = st.multiselect(
+            "Vyber běhy, které se mají hodnotit podle tepu místo tempa:",
+            options=list(moznosti.keys()),
+            default=[k for k, v in moznosti.items() if v in st.session_state.rucni_teren_ids]
+        )
+        st.session_state.rucni_teren_ids = [moznosti[k] for k in vybrane]
     else:
         st.warning("👈 Nejdříve se přihlas v levém menu.")
 
@@ -303,7 +375,12 @@ elif stranka == "Nastavení zón":
         st.session_state.dni_zpet = st.selectbox("Délka klouzavého okna (dny)", [7, 14, 30], index=[7, 14, 30].index(st.session_state.dni_zpet))
     
     st.session_state.limit_seda_pct = st.slider("Maximální tolerance šedé zóny (% z běhu)", 0, 25, st.session_state.limit_seda_pct)
-
+    st.divider()
+    st.subheader("⛰️ Kopce a 🌲 Terén / Orientační běh")
+    st.session_state.zapnout_gap = st.checkbox("Automaticky přepočítávat kopce na rovinaté tempo (GAP)", value=st.session_state.zapnout_gap)
+    col_t1, col_t2 = st.columns(2)
+    st.session_state.tep_objem_max = col_t1.number_input("Max. tep pro Objem v terénu (bpm)", 100, 180, st.session_state.tep_objem_max)
+    st.session_state.tep_rychlost_min = col_t2.number_input("Min. tep pro Rychlost v terénu (bpm)", 130, 210, st.session_state.tep_rychlost_min)
 # ==========================================
 # STRÁNKA 4: BUDOUCÍ TRÉNINKOVÝ DENÍK
 # ==========================================
