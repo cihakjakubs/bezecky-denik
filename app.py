@@ -4,6 +4,7 @@ import plotly.express as px
 from streamlit_option_menu import option_menu
 from datetime import datetime, timedelta
 from garminconnect import Garmin
+from supabase import create_client
 
 @st.cache_resource
 def init_supabase():
