@@ -20,15 +20,17 @@ st.set_page_config(page_title="Běžecký Deník", page_icon="🏃", layout="wid
 
 if "db_nacteno" not in st.session_state:
     if supabase:
-        res = supabase.table("nastaveni").select("*").eq("id", 1).execute()
-        if res.data:
-            for klic, hodnota in res.data.items():
-                if klic != "id":
-                    st.session_state[klic] = hodnota
-        res_ob = supabase.table("aktivity_poznamky").select("activity_id").eq("je_teren_ob", True).execute()
-        st.session_state.rucni_teren_ids = [r["activity_id"] for r in res_ob.data]
+        try:
+            res = supabase.table("nastaveni").select("*").eq("id", 1).execute()
+            if res.data:
+                for klic, hodnota in res.data.items():
+                    if klic != "id":
+                        st.session_state[klic] = hodnota
+            res_ob = supabase.table("aktivity_poznamky").select("activity_id").eq("je_teren_ob", True).execute()
+            st.session_state.rucni_teren_ids = [r["activity_id"] for r in res_ob.data]
+        except Exception as e:
+            st.sidebar.error(f"Chyba DB: {e}")
     st.session_state.db_nacteno = True
-
 
 # --- BOČNÍ MENU ---
 with st.sidebar:
