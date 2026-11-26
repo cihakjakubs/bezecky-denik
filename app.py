@@ -47,17 +47,18 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly):
         typ = akt.get('activityType', {}).get('typeKey', '')
         
         if 'running' not in typ and 'strength' not in typ and 'cardio' not in typ and 'fitness' not in typ:
-         continue
+            continue
 
-     aid = akt['activityId']
-     nazev = akt['activityName']
-     datum = akt['startTimeLocal'][:10]
-     vzdalenost = round(akt.get('distance', 0) / 1000, 2)
-     tep = akt.get('averageHR', 0)
-     celkovy_cas_min = round(akt.get('duration', 0) / 60, 1)
+        aid = akt['activityId']
+        nazev = akt['activityName']
+        datum = akt['startTimeLocal'][:10]
+        vzdalenost = round(akt.get('distance', 0) / 1000, 2)
+        tep = akt.get('averageHR', 0)
+        celkovy_cas_min = round(akt.get('duration', 0) / 60, 1)
 
-     beh_objem, beh_seda, beh_rychlost = 0, 0, 0
-     kategorie = "🏃 Běh" if 'running' in typ else "🏋️ Posilování"
+        beh_objem, beh_seda, beh_rychlost = 0, 0, 0
+        kategorie = "🏃 Běh" if 'running' in typ else "🏋️ Posilování"
+
 
         
         if kategorie == "🏃 Běh":
