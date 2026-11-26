@@ -178,28 +178,28 @@ if stranka == "📊 Dashboard":
                     c5.metric("⏱️ Celkem aktivně", f"{round(celkem_beh_min + cas_posilovani, 1)} min", f"{round(df_behy['Vzdálenost (km)'].sum(), 1)} km běh")
                     
                     st.divider()
-                    
+
                     # Graf rozložení běžeckých zón (Koláčový / Donut graf)
-                   st.subheader("Rozložení běžeckých zón")
-                   graf_data = pd.DataFrame({
-                       "Zóna": ["🟢 Objem", "🟡 Šedá zóna", "🔴 Rychlost"],
-                       "Minuty": [objem, seda, rychlost]
-                   })
-                   fig = px.pie(
-                       graf_data, 
-                       values="Minuty", 
-                       names="Zóna", 
-                       color="Zóna",
-                       color_discrete_map={
-                           "🟢 Objem": "#2ecc71",
-                           "🟡 Šedá zóna": "#f1c40f",
-                           "🔴 Rychlost": "#e74c3c"
-                       },
-                       hole=0.45
-                   )
-                   fig.update_traces(textposition="inside", textinfo="percent+label")
-                   st.plotly_chart(fig, use_container_width=True)
-              
+                    st.subheader("Rozložení běžeckých zón")
+                    graf_data = pd.DataFrame({
+                        "Zóna": ["🟢 Objem", "🟡 Šedá zóna", "🔴 Rychlost"],
+                        "Minuty": [objem, seda, rychlost]
+                    })
+                    fig = px.pie(
+                        graf_data,
+                        values="Minuty",
+                        names="Zóna",
+                        color="Zóna",
+                        color_discrete_map={
+                            "🟢 Objem": "#2ecc71",
+                            "🟡 Šedá zóna": "#f1c40f",
+                            "🔴 Rychlost": "#e74c3c"
+                        },
+                        hole=0.45
+                    )
+                    fig.update_traces(textposition="inside", textinfo="percent+label")
+                    st.plotly_chart(fig, use_container_width=True)
+
             except Exception as e:
                 st.error(f"Chyba při komunikaci s Garminem: {e}")
 
