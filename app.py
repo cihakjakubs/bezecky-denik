@@ -83,7 +83,6 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
         beh_objem, beh_seda, beh_rychlost = 0, 0, 0
         kategorie = "🏃 Běh" if 'running' in typ else "🏋️ Posilování"
 
-        # Zjistíme, zda jde o terénní běh / orienťák (automaticky nebo ručně)
         nazev_lower = nazev.lower()
         je_teren_auto = ('trail' in typ) or any(slovo in nazev_lower for slovo in ['trail', 'ob', 'orienťák', 'orientak', 'les', 'sníh', 'snih'])
         pouzit_tep_rezim = (aid in rucni_teren_ids) or je_teren_auto
@@ -99,6 +98,7 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
                 idx_tep = popisy.index('directHeartRate') if 'directHeartRate' in popisy else None
 
                 vzorky = detaily['activityDetailMetrics']
+                historie_vysky = [] # Paměť pro 10sekundové vyhlazení výšky
 
                 for i in range(1, len(vzorky)):
                     m_ted = vzorky[i]['metrics']
@@ -110,11 +110,13 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
 
                     rozdil = (c_ted - c_pred) / 1000.0
                     if rozdil > 10:
+                        historie_vysky.clear()
                         continue
 
-                    # --- REŽIM A: TERÉN / ORIENŤÁK / SNÍH (PODLE TEPU) ---
-                    if pouzit_tep_rezim and idx_tep is not None and m_ted[idx_tep] is not None:
-                        hr_ted = m_ted[idx_tep]
+                    hr_ted = m_ted[idx_tep] if (idx_tep is not None and m_ted[idx_tep] is not None) else None
+
+                    # --- REŽIM A: TERÉN / ORIENŤÁK / SNÍH (ČISTĚ PODLE TEPU) ---
+                    if pouzit_tep_rezim and hr_ted is not None:
                         if hr_ted <= tep_obj:
                             beh_objem += rozdil
                         elif hr_ted >= tep_rych:
@@ -122,26 +124,41 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
                         else:
                             beh_seda += rozdil
 
-                    # --- REŽIM B: SILNICE S KOREKCÍ KOPCŮ (GAP) ---
+                    # --- REŽIM B: SILNICE (CHYTRÉ POROVNÁNÍ TEP × TEMPO + 10s KOPCE) ---
                     elif idx_rychlost is not None and m_ted[idx_rychlost] is not None:
                         r_ms = m_ted[idx_rychlost]
                         if r_ms < 0.5:
                             continue
 
-                        efektivni_rychlost = r_ms
+                        # Výpočet sklonu za posledních 10 sekund
+                        sklon = 0.0
+                        if pouzit_gap and idx_vyska is not None and m_ted[idx_vyska] is not None:
+                            historie_vysky.append((c_ted / 1000.0, m_ted[idx_vyska], r_ms * rozdil))
+                            # Odstraníme vzorky starší než 10 sekund
+                            while len(historie_vysky) > 1 and (historie_vysky[-1][0] - historie_vysky[0][0]) > 10.0:
+                                historie_vysky.pop(0)
+                            
+                            if len(historie_vysky) >= 2:
+                                prevyseni_10s = historie_vysky[-1][1] - historie_vysky[0][1]
+                                vzdalenost_10s = sum(x[2] for x in historie_vysky[1:])
+                                if vzdalenost_10s > 5.0:
+                                    sklon = max(-0.25, min(0.25, prevyseni_10s / vzdalenost_10s))
 
-                        # Přepočet sklonu kopce (GAP)
-                        if pouzit_gap and idx_vyska is not None and m_ted[idx_vyska] is not None and m_pred[idx_vyska] is not None:
-                            vzdalenost_useku = r_ms * rozdil
-                            if vzdalenost_useku > 1.0:
-                                prevyseni = m_ted[idx_vyska] - m_pred[idx_vyska]
-                                sklon = max(-0.25, min(0.25, prevyseni / vzdalenost_useku)) # omezení extrémů GPS
-                                # Do kopce přidá ekvivalentní rychlost, z kopce mírně ubere
-                                koeficient = 1 + (sklon * 3.3) if sklon >= 0 else 1 + (sklon * 1.5)
-                                efektivni_rychlost = r_ms * max(0.7, koeficient)
+                        efektivni_rychlost = r_ms
+                        # Do kopce (nad +2.5 %) pomůžeme tempu podle sklonu
+                        if pouzit_gap and sklon > 0.025:
+                            efektivni_rychlost = r_ms * (1 + (sklon * 3.3))
 
                         tempo = 1000.0 / efektivni_rychlost
-                        if tempo >= lim_pomaly:
+
+                        # 1. Seběh z kopce (sklon < -2.5 %): pokud je tep stále nízko v objemu, necháme v objemu!
+                        if pouzit_gap and sklon < -0.025 and hr_ted is not None and hr_ted <= tep_obj:
+                            beh_objem += rozdil
+                        # 2. Výběh do kopce (sklon > +2.5 %): pokud je tep v rychlosti nebo přepočtené tempo v rychlosti
+                        elif pouzit_gap and sklon > 0.025 and ((hr_ted is not None and hr_ted >= tep_rych) or tempo <= lim_rychly):
+                            beh_rychlost += rozdil
+                        # 3. Standardní vyhodnocení podle tempa (rovina / intervaly)
+                        elif tempo >= lim_pomaly:
                             beh_objem += rozdil
                         elif tempo <= lim_rychly:
                             beh_rychlost += rozdil
@@ -150,7 +167,7 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
 
         rezim_text = "-"
         if kategorie == "🏃 Běh":
-            rezim_text = "🌲 Terén/OB (Tep)" if pouzit_tep_rezim else ("⛰️ Silnice + Kopce" if pouzit_gap else "🛣️ Silnice (Tempo)")
+            rezim_text = "🌲 Terén/OB (Tep)" if pouzit_tep_rezim else ("⛰️ Silnice (10s Kopce+Tep)" if pouzit_gap else "🛣️ Silnice (Tempo)")
 
         seznam_aktivit.append({
             "ID": aid,
