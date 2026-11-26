@@ -227,7 +227,7 @@ if stranka == "Dashboard":
                         behy_ef["Efektivita"] = (behy_ef["Rychlost_m_min"] / behy_ef["Prům. tep"]).round(2)
 
                         prum_ef = round(behy_ef["Efektivita"].mean(), 2)
-                        posledni_ef = behy_ef.iloc["Efektivita"]
+                        posledni_ef = behy_ef["Efektivita"].iloc[0]
                         rozdil_ef = round(posledni_ef - prum_ef, 2)
 
                         st.metric(
