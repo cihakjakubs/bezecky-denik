@@ -21,6 +21,7 @@ email = st.sidebar.text_input("Garmin E-mail", value=default_email)
 heslo = st.sidebar.text_input("Garmin Heslo", value=default_heslo, type="password")
 
 # Výchozí hodnoty nastavení
+# Výchozí hodnoty nastavení
 if "pomaly_min" not in st.session_state:
     st.session_state.pomaly_min = 5
     st.session_state.pomaly_sec = 15
@@ -30,6 +31,8 @@ if "pomaly_min" not in st.session_state:
     st.session_state.tolerance_pct = 3        # Tolerance ±3 %
     st.session_state.dni_zpet = 14
     st.session_state.cil_posilovani_tyden = 1 # Cíl: 1x týdně
+
+if "limit_seda_pct" not in st.session_state:
     st.session_state.limit_seda_pct = 5       # Limit pro šedou zónu (5 %)
 
 @st.cache_data(ttl=1800)
