@@ -10,11 +10,11 @@ st.set_page_config(page_title="Běžecký Deník", page_icon="🏃", layout="wid
 # --- BOČNÍ MENU ---
 with st.sidebar:
     st.title("🏃 Běžecký Deník")
-    stranka = option_menu(
-        menu_title=None,
-        options=["Dashboard", "Deník aktivit", "Nastavení zón", "Budoucí deník"],
-        icons=["speedometer2", "activity", "gear", "journal-text"],
-        default_index=0,
+        stranka = option_menu(
+            menu_title=None,
+            options=["Dashboard", "Plánovač", "Deník aktivit", "Nastavení zón", "Budoucí deník"],
+            icons=["speedometer2", "calendar-plus", "activity", "gear", "journal-text"],
+            default_index=0,
         styles={
             "container": {"padding": "0!important", "background-color": "transparent"},
             "icon": {"font-size": "18px"},
@@ -190,13 +190,13 @@ if stranka == "Dashboard":
                     
                     st.divider()
 
-                    # Graf rozložení běžeckých zón (Koláčový / Donut graf)
-                    st.subheader("Rozložení běžeckých zón")
+                    # --- SEKCE 1: KOLÁČOVÝ GRAF ---
+                    st.subheader("🎯 Rozložení běžeckých zón")
                     graf_data = pd.DataFrame({
                         "Zóna": ["🟢 Objem", "🟡 Šedá zóna", "🔴 Rychlost"],
                         "Minuty": [objem, seda, rychlost]
                     })
-                    fig = px.pie(
+                    fig_pie = px.pie(
                         graf_data,
                         values="Minuty",
                         names="Zóna",
@@ -206,13 +206,47 @@ if stranka == "Dashboard":
                             "🟡 Šedá zóna": "#f1c40f",
                             "🔴 Rychlost": "#e74c3c"
                         },
-                        hole=0.6
+                        hole=0.45
                     )
-                    fig.update_traces(
+                    fig_pie.update_traces(
                         textinfo="none",
                         hovertemplate="<b>%{label}</b><br>Čas: %{value:.1f} min<br>Podíl: %{percent}<extra></extra>"
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig_pie, use_container_width=True)
+
+                    st.divider()
+
+                    # --- SEKCE 2: AEROBNÍ EFEKTIVITA (POD GRAFEM) ---
+                    st.subheader("🫀 Aerobní efektivita (Tempo vs. Tep)")
+                    behy_ef = df_behy[(df_behy["Prům. tep"] > 0) & (df_behy["Vzdálenost (km)"] > 0) & (df_behy["Celkem (min)"] > 0)].copy()
+
+                    if behy_ef.empty:
+                        st.info("Pro výpočet efektivity nejsou k dispozici běhy s tepem a GPS.")
+                    else:
+                        behy_ef["Rychlost_m_min"] = (behy_ef["Vzdálenost (km)"] * 1000) / behy_ef["Celkem (min)"]
+                        behy_ef["Efektivita"] = (behy_ef["Rychlost_m_min"] / behy_ef["Prům. tep"]).round(2)
+
+                        prum_ef = round(behy_ef["Efektivita"].mean(), 2)
+                        posledni_ef = behy_ef.iloc["Efektivita"]
+                        rozdil_ef = round(posledni_ef - prum_ef, 2)
+
+                        st.metric(
+                            "Index efektivity (EF)",
+                            f"{posledni_ef} (poslední běh)",
+                            f"{rozdil_ef:+} oproti průměru ({prum_ef})"
+                        )
+                        st.caption("Čím vyšší číslo, tím rychleji běžíš na stejný tep (forma jde nahoru).")
+
+                        behy_trend = behy_ef.sort_values("Datum")
+                        fig_ef = px.line(
+                            behy_trend,
+                            x="Datum",
+                            y="Efektivita",
+                            markers=True,
+                            hover_data=["Název", "Prům. tep", "Vzdálenost (km)"]
+                        )
+                        fig_ef.update_layout(height=280, yaxis_title="EF (m/tep)")
+                        st.plotly_chart(fig_ef, use_container_width=True)
 
             except Exception as e:
                 st.error(f"Chyba při komunikaci s Garminem: {e}")
