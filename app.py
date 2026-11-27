@@ -242,18 +242,25 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
             nejdelsi_usek = max(rychle_useky_delky) if rychle_useky_delky else 0
             kratke_rovinky = [d for d in rychle_useky_delky if 8.0 <= d <= 40.0]
 
-            # Závod: označený v názvu/Garminu, nebo souvislý max. výkon (15+ min v kuse a > 65 % celého běhu)
-            je_zavod_vykon = (nejdelsi_usek >= 900.0 and podil_rychlosti >= 0.65)
+            # Závodní slova (včetně orienťáckých disciplín) nebo 12+ minut v kuse bez přestávky
+            zavodni_slova = ['závod', 'zavod', 'race', 'mčr', 'mcr', 'pohár', 'pohar', 'liga', 'štafet', 'stafet', 'klasik', 'krátk', 'kratk', 'sprint', 'middle', 'long']
+            je_zavod_slovo = je_zavod_nazev or any(s in nazev_lower for s in zavodni_slova)
+            je_zavod_vykon = (nejdelsi_usek >= 720.0) # 12+ minut v kuse v nejvyšší zóně (funguje i s rozklusem a výklusem!)
 
-            if je_zavod_nazev or je_zavod_vykon:
+            # Kopce: musí být alespoň 3 opakované výběhy a výrazné stoupání v rychlosti (90+ m nebo > 20 m/min)
+            rychlost_min_celkem = beh_rychlost / 60.0
+            stoupani_za_min = (nastoupano_v_rychlosti / rychlost_min_celkem) if rychlost_min_celkem > 0 else 0
+            jsou_to_kopce = ('kopce' in nazev_lower) or (len(rychle_useky_delky) >= 3 and nastoupano_v_rychlosti >= 90 and stoupani_za_min >= 20)
+
+            if je_zavod_slovo or je_zavod_vykon:
                 typ_treninku = "🏆 ZÁVOD (OB)" if pouzit_tep_rezim else "🏆 ZÁVOD"
             elif pouzit_tep_rezim:
                 typ_treninku = "🧭 OB (Orienťák)"
-            elif 'kopce' in nazev_lower or (nastoupano_v_rychlosti >= 45 and podil_rychlosti >= 0.12):
+            elif jsou_to_kopce:
                 typ_treninku = "⛰️ KOPCE"
             elif podil_rychlosti < 0.12:
                 if len(kratke_rovinky) >= 2:
-                    typ_treninku = "🟢 OBJEM +STRIDES"
+                    typ_treninku = "🟢 OBJEM + STRIDES"
                 else:
                     typ_treninku = "🟢 OBJEM"
             elif prumerna_delka_useku >= 180.0:
