@@ -639,7 +639,7 @@ elif stranka == "Deník aktivit":
         mozne_typy = [
             "🟢 OBJEM", "🟢 OBJEM +STRIDES", "🔥 TEMPO",
             "⚡ INTERVALY", "⛰️ KOPCE", "🧭 OB",
-            "🏆 ZÁVOD", "🏆 ZÁVOD (OB)", "🏋️ POSILOVÁNÍ", "🚴 CYKLISTIKA"
+            "🏆 ZÁVOD", "🏆 ZÁVOD (OB)", "🏋️ POSILOVÁNÍ", "🚴 CYKLISTIKA", "🛣️ LONG RUN", "🎲 FARTLEK"
         ]
 
         # Interaktivní tabulka – upravovat jde jen sloupec 'Trénink'
