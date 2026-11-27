@@ -239,37 +239,28 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
         if kategorie == "🏃 Běh":
             celkem_sec = beh_objem + beh_seda + beh_rychlost
             podil_rychlosti = (beh_rychlost / celkem_sec) if celkem_sec > 0 else 0
+            podil_vyssi_intenzity = ((beh_rychlost + beh_seda) / celkem_sec) if celkem_sec > 0 else 0
             prumerna_delka_useku = (sum(rychle_useky_delky) / len(rychle_useky_delky)) if rychle_useky_delky else 0
-            nejdelsi_usek = max(rychle_useky_delky) if rychle_useky_delky else 0
-            kratke_rovinky = [d for d in rychle_useky_delky if 8.0 <= d <= 40.0]
+            # Rovinky: 8 až 35 sekund, stačí 3 během běhu
+            kratke_rovinky = [d for d in rychle_useky_delky if 8.0 <= d <= 35.0]
 
-            # Závodní slova (včetně orienťáckých disciplín) nebo 12+ minut v kuse bez přestávky
-            zavodni_slova = ['závod', 'zavod', 'race', 'mčr', 'mcr', 'pohár', 'pohar', 'liga', 'štafet', 'stafet', 'klasik', 'krátk', 'kratk', 'sprint', 'middle', 'long']
-            je_zavod_slovo = je_zavod_nazev or any(s in nazev_lower for s in zavodni_slova)
-            je_zavod_vykon = (nejdelsi_usek >= 720.0) # 12+ minut v kuse v nejvyšší zóně (funguje i s rozklusem a výklusem!)
-
-            # Kopce: musí být alespoň 3 opakované výběhy a výrazné stoupání v rychlosti (90+ m nebo > 20 m/min)
-            rychlost_min_celkem = beh_rychlost / 60.0
-            stoupani_za_min = (nastoupano_v_rychlosti / rychlost_min_celkem) if rychlost_min_celkem > 0 else 0
-            jsou_to_kopce = ('kopce' in nazev_lower) or (len(rychle_useky_delky) >= 3 and nastoupano_v_rychlosti >= 90 and stoupani_za_min >= 20)
-
-            if je_zavod_slovo or je_zavod_vykon:
-                typ_treninku = "🏆 ZÁVOD (OB)" if pouzit_tep_rezim else "🏆 ZÁVOD"
-            elif pouzit_tep_rezim:
+            if pouzit_tep_rezim:
                 typ_treninku = "🧭 OB (Orienťák)"
-            elif jsou_to_kopce:
+            elif any(s in nazev_lower for s in ['závod', 'zavod', 'race', 'mčr', 'mcr']):
+                typ_treninku = "🏆 ZÁVOD"
+            elif 'kopce' in nazev_lower:
                 typ_treninku = "⛰️ KOPCE"
             elif podil_rychlosti < 0.12:
-                if len(kratke_rovinky) >= 2:
-                    typ_treninku = "🟢 OBJEM + STRIDES"
+                if len(kratke_rovinky) >= 3:
+                    typ_treninku = "🟢 OBJEM +STRIDES"
                 else:
                     typ_treninku = "🟢 OBJEM"
-            elif prumerna_delka_useku >= 180.0:
-                typ_treninku = "🔥 TEMPO"
+            elif prumerna_delka_useku >= 150.0 or (podil_vyssi_intenzity >= 0.35 and len(rychle_useky_delky) <= 4):
+                typ_treninku = "🔥 TEMPO (Prahový)"
             elif len(rychle_useky_delky) >= 4:
-                typ_treninku = "⚡ INTERVALY"
+                typ_treninku = "⚡ INTERVALY (VO2max)"
             else:
-                typ_treninku = "🔥 TEMPO"
+                typ_treninku = "🔥 TEMPO (Prahový)"
 
         seznam_aktivit.append({
             "ID": aid,
