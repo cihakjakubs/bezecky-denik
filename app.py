@@ -479,9 +479,90 @@ elif stranka == "Plánovač":
                 potrebny_o = nova_rychlost * ((100 - max_r) / max_r)
                 chybi_o = potrebny_o - novy_objem
                 st.error(f"⚠️ **Pozor, moc rychlosti!** Překročíš horní hranici ({max_r} %). Přidej do plánu ještě cca **{round(chybi_o, 1)} min** volného objemu.")
-                
+
 # ==========================================
-# STRÁNKA 3: DENÍK AKTIVIT
+# STRÁNKA 3: STATISTIKY (MĚSÍČNÍ PŘEHLEDY)
+# ==========================================
+elif stranka == "Statistiky":
+    st.title("📈 Dlouhodobé statistiky a složení tréninků")
+
+    if not email or not heslo:
+        st.warning("👈 Nejdříve se přihlas v levém menu.")
+    else:
+        pocet_mesicu = st.slider("Zobrazit historii za posledních (měsíců):", 2, 12, 6)
+        dni_historie = pocet_mesicu * 30
+
+        with st.spinner(f"Načítám historii za posledních {pocet_mesicu} měsíců z Garminu..."):
+            df_hist = nacti_data_z_garminu(
+                email, heslo, dni_historie,
+                lim_pomaly_sec, lim_rychly_sec,
+                st.session_state.tep_objem_max, st.session_state.tep_rychlost_min,
+                st.session_state.zapnout_gap, tuple(st.session_state.rucni_teren_ids)
+            )
+
+        if df_hist.empty:
+            st.info("Za zvolené období nebyly nalezeny žádné aktivity.")
+        else:
+            df_hist["Měsíc"] = df_hist["Datum"].str.slice(0, 7) # Např. "2026-11"
+            df_behy_h = df_hist[df_hist["Typ"] == "🏃 Běh"]
+
+            # --- 1. SOUHRNNÉ REKORDY ZA OBDOBÍ ---
+            st.subheader(f"🏆 Souhrn za posledních {pocet_mesicu} měsíců")
+            s1, s2, s3, s4 = st.columns(4)
+            s1.metric("🏃 Naběháno celkem", f"{round(df_behy_h['Vzdálenost (km)'].sum(), 1)} km", f"{len(df_behy_h)} běhů")
+            s2.metric("⏱️ Celkový čas (vše)", f"{round(df_hist['Celkem (min)'].sum() / 60, 1)} hod", f"{len(df_hist)} aktivit")
+            s3.metric("⛰️ Nastoupáno celkem", f"{int(df_behy_h['Převýšení (m)'].sum())} m", f"Max {int(df_behy_h['Převýšení (m)'].max()) if not df_behy_h.empty else 0} m / běh")
+            s4.metric("📏 Nejdelší běh", f"{df_behy_h['Vzdálenost (km)'].max() if not df_behy_h.empty else 0} km", f"Průměr {round(df_behy_h['Vzdálenost (km)'].mean(), 1) if not df_behy_h.empty else 0} km")
+
+            st.divider()
+
+            # --- 2. MĚSÍČNÍ SLOŽENÍ TRÉNINKŮ (SLOUPCOVÝ GRAF) ---
+            st.subheader("📊 Měsíční složení tréninků (minuty podle typu)")
+            mesicni_typy = df_hist.groupby(["Měsíc", "Trénink"])["Celkem (min)"].sum().reset_index()
+
+            fig_mesice = px.bar(
+                mesicni_typy,
+                x="Měsíc",
+                y="Celkem (min)",
+                color="Trénink",
+                color_discrete_map={
+                    "🟢 OBJEM": "#2ecc71",
+                    "🟢 OBJEM +STRIDES": "#27ae60",
+                    "🔥 TEMPO (Prahový)": "#e67e22",
+                    "⚡ INTERVALY (VO2max)": "#e74c3c",
+                    "⛰️ KOPCE": "#9b59b6",
+                    "🧭 OB (Orienťák)": "#16a085",
+                    "🏆 ZÁVOD": "#f1c40f",
+                    "🏆 ZÁVOD (OB)": "#f39c12",
+                    "🏋️ POSILOVÁNÍ": "#3498db"
+                },
+                labels={"Celkem (min)": "Čas (minuty)", "Měsíc": "Měsíc"}
+            )
+            fig_mesice.update_layout(barmode="stack", xaxis_type="category")
+            st.plotly_chart(fig_mesice, use_container_width=True)
+
+            st.divider()
+
+            # --- 3. MĚSÍČNÍ KILOMETRY A PŘEVÝŠENÍ ---
+            col_st1, col_st2 = st.columns(2)
+            with col_st1:
+                st.subheader("📏 Kilometry po měsících")
+                mesicni_km = df_behy_h.groupby("Měsíc")["Vzdálenost (km)"].sum().reset_index()
+                fig_km = px.bar(mesicni_km, x="Měsíc", y="Vzdálenost (km)", text_auto=".1f")
+                fig_km.update_traces(marker_color="#2ecc71")
+                fig_km.update_layout(xaxis_type="category")
+                st.plotly_chart(fig_km, use_container_width=True)
+
+            with col_st2:
+                st.subheader("⛰️ Nastoupané metry po měsících")
+                mesicni_vyska = df_behy_h.groupby("Měsíc")["Převýšení (m)"].sum().reset_index()
+                fig_vyska = px.bar(mesicni_vyska, x="Měsíc", y="Převýšení (m)", text_auto=True)
+                fig_vyska.update_traces(marker_color="#9b59b6")
+                fig_vyska.update_layout(xaxis_type="category")
+                st.plotly_chart(fig_vyska, use_container_width=True)
+
+# ==========================================
+# STRÁNKA 4: DENÍK AKTIVIT
 # ==========================================
 elif stranka == "Deník aktivit":
     st.title("🏃 Seznam stažených aktivit")
@@ -508,7 +589,7 @@ elif stranka == "Deník aktivit":
         st.warning("👈 Nejdříve se přihlas v levém menu.")
 
 # ==========================================
-# STRÁNKA 4: NASTAVENÍ ZÓN
+# STRÁNKA 5: NASTAVENÍ ZÓN
 # ==========================================
 elif stranka == "Nastavení zón":
     st.title("⚙️ Nastavení zón a tréninkových cílů")
@@ -569,7 +650,7 @@ elif stranka == "Nastavení zón":
             st.success("✅ Uloženo!")
 
 # ==========================================
-# STRÁNKA 5: BUDOUCÍ TRÉNINKOVÝ DENÍK
+# STRÁNKA 6: TRÉNINKOVÝ DENÍK
 # ==========================================
 elif stranka == "Budoucí deník":
     st.title("📝 Tréninkový deník (Připraveno k rozšíření)")
