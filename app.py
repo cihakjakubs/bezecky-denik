@@ -245,7 +245,7 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
             kratke_rovinky = [d for d in rychle_useky_delky if 8.0 <= d <= 35.0]
 
             if pouzit_tep_rezim:
-                typ_treninku = "🧭 OB (Orienťák)"
+                typ_treninku = "🧭 OB"
             elif any(s in nazev_lower for s in ['závod', 'zavod', 'race', 'mčr', 'mcr']):
                 typ_treninku = "🏆 ZÁVOD"
             elif 'kopce' in nazev_lower:
@@ -256,11 +256,11 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
                 else:
                     typ_treninku = "🟢 OBJEM"
             elif prumerna_delka_useku >= 150.0 or (podil_vyssi_intenzity >= 0.35 and len(rychle_useky_delky) <= 4):
-                typ_treninku = "🔥 TEMPO (Prahový)"
+                typ_treninku = "🔥 TEMPO"
             elif len(rychle_useky_delky) >= 4:
-                typ_treninku = "⚡ INTERVALY (VO2max)"
+                typ_treninku = "⚡ INTERVALY"
             else:
-                typ_treninku = "🔥 TEMPO (Prahový)"
+                typ_treninku = "🔥 TEMPO"
 
         seznam_aktivit.append({
             "ID": aid,
@@ -616,8 +616,8 @@ elif stranka == "Deník aktivit":
         df["Trénink"] = df.apply(lambda r: vlastni_mapa.get(r["ID"], r["Trénink"]), axis=1)
 
         mozne_typy = [
-            "🟢 OBJEM", "🟢 OBJEM +STRIDES", "🔥 TEMPO (Prahový)",
-            "⚡ INTERVALY (VO2max)", "⛰️ KOPCE", "🧭 OB (Orienťák)",
+            "🟢 OBJEM", "🟢 OBJEM +STRIDES", "🔥 TEMPO",
+            "⚡ INTERVALY", "⛰️ KOPCE", "🧭 OB",
             "🏆 ZÁVOD", "🏆 ZÁVOD (OB)", "🏋️ POSILOVÁNÍ"
         ]
 
