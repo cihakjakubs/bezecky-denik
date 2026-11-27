@@ -240,11 +240,11 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
                 else:
                     typ_treninku = "🟢 OBJEM"
             elif prumerna_delka_useku >= 180.0:
-                typ_treninku = "🔥 TEMPO (Prahový)"
+                typ_treninku = "🔥 TEMPO"
             elif len(rychle_useky_delky) >= 4:
-                typ_treninku = "⚡ INTERVALY (VO2max)"
+                typ_treninku = "⚡ INTERVALY"
             else:
-                typ_treninku = "🔥 TEMPO (Prahový)"
+                typ_treninku = "🔥 TEMPO"
 
         seznam_aktivit.append({
             "ID": aid,
