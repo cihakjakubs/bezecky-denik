@@ -539,6 +539,7 @@ elif stranka == "Statistiky":
         else:
             df_hist["Trénink"] = df_hist.apply(lambda r: st.session_state.get("vlastni_typy_db", {}).get(r["ID"], r["Trénink"]), axis=1)
             df_hist["Měsíc"] = df_hist["Datum"].str.slice(0, 7)
+            df_behy_h = df_hist[df_hist["Typ"] == "🏃 Běh"]
 
             # --- 1. SOUHRNNÉ REKORDY ZA OBDOBÍ ---
             st.subheader(f"🏆 Souhrn za posledních {pocet_mesicu} měsíců")
