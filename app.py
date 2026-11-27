@@ -21,6 +21,9 @@ supabase = init_supabase()
 
 st.set_page_config(page_title="Běžecký Deník", page_icon="🏃", layout="wide")
 
+if "vlastni_typy_db" not in st.session_state:
+    st.session_state.vlastni_typy_db = {}
+    
 if "db_nacteno" not in st.session_state:
     if supabase:
         try:
@@ -113,7 +116,7 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
     for akt in aktivity:
         typ = akt.get('activityType', {}).get('typeKey', '')
 
-        if 'running' not in typ and 'strength' not in typ and 'cardio' not in typ and 'fitness' not in typ:
+        if 'running' not in typ and 'strength' not in typ and 'cardio' not in typ and 'fitness' not in typ and 'cycling' not in typ:
             continue
 
         aid = akt['activityId']
@@ -129,7 +132,13 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
         event_type = akt.get('eventType', {}).get('typeKey', '')
 
         beh_objem, beh_seda, beh_rychlost = 0, 0, 0
-        kategorie = "🏃 Běh" if 'running' in typ else "🏋️ Posilování"
+        if 'running' in typ:
+            kategorie = "🏃 Běh"
+        elif 'cycling' in typ:
+            kategorie = "🚴 Cyklistika"
+        else:
+            kategorie = "🏋️ Posilování"
+
 
         nazev_lower = nazev.lower()
         je_ob_auto = ('trail' in typ) or any(slovo in nazev_lower for slovo in ['trail', 'ob', 'orienťák', 'orientak', 'les'])
@@ -236,27 +245,34 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
 
         # --- AUTOMATICKÉ URČENÍ ŠTÍTKU TRÉNINKU ---
         typ_treninku = "🏋️ POSILOVÁNÍ"
-        if kategorie == "🏃 Běh":
+        if kategorie == "🚴 Cyklistika":
+            typ_treninku = "🚴 CYKLISTIKA"
+        elif kategorie == "🏋️ Posilování":
+            typ_treninku = "🏋️ POSILOVÁNÍ"
+        elif kategorie == "🏃 Běh":
             celkem_sec = beh_objem + beh_seda + beh_rychlost
             podil_rychlosti = (beh_rychlost / celkem_sec) if celkem_sec > 0 else 0
             podil_vyssi_intenzity = ((beh_rychlost + beh_seda) / celkem_sec) if celkem_sec > 0 else 0
             prumerna_delka_useku = (sum(rychle_useky_delky) / len(rychle_useky_delky)) if rychle_useky_delky else 0
-            # Rovinky: 8 až 35 sekund, stačí 3 během běhu
             kratke_rovinky = [d for d in rychle_useky_delky if 8.0 <= d <= 35.0]
 
             if pouzit_tep_rezim:
                 typ_treninku = "🧭 OB"
             elif any(s in nazev_lower for s in ['závod', 'zavod', 'race', 'mčr', 'mcr']):
-                typ_treninku = "🏆 ZÁVOD"
+             typ_treninku = "🏆 ZÁVOD"
             elif 'kopce' in nazev_lower:
                 typ_treninku = "⛰️ KOPCE"
+            elif 'fartlek' in nazev_lower:
+                typ_treninku = "🎲 FARTLEK"
             elif podil_rychlosti < 0.12:
-                if len(kratke_rovinky) >= 3:
+                if celkem_sec >= 5100: # 85 minut a více = Long run
+                    typ_treninku = "🛣️ LONG RUN"
+                elif len(kratke_rovinky) >= 3:
                     typ_treninku = "🟢 OBJEM +STRIDES"
                 else:
                     typ_treninku = "🟢 OBJEM"
             elif prumerna_delka_useku >= 150.0 or (podil_vyssi_intenzity >= 0.35 and len(rychle_useky_delky) <= 4):
-                typ_treninku = "🔥 TEMPO"
+                typ_treninku = "🔥 TEMPO (Prahový)"
             elif len(rychle_useky_delky) >= 4:
                 typ_treninku = "⚡ INTERVALY"
             else:
@@ -570,6 +586,9 @@ elif stranka == "Statistiky":
                     "🏆 ZÁVOD": "#f1c40f",
                     "🏆 ZÁVOD (OB)": "#f39c12",
                     "🏋️ POSILOVÁNÍ": "#3498db"
+                    "🛣️ LONG RUN": "#1abc9c",
+                    "🎲 FARTLEK": "#e84393",
+                    "🚴 CYKLISTIKA": "#0984e3",
                 },
                 labels={"Celkem (min)": "Čas (minuty)", "Měsíc": "Měsíc"}
             )
@@ -619,7 +638,7 @@ elif stranka == "Deník aktivit":
         mozne_typy = [
             "🟢 OBJEM", "🟢 OBJEM +STRIDES", "🔥 TEMPO",
             "⚡ INTERVALY", "⛰️ KOPCE", "🧭 OB",
-            "🏆 ZÁVOD", "🏆 ZÁVOD (OB)", "🏋️ POSILOVÁNÍ"
+            "🏆 ZÁVOD", "🏆 ZÁVOD (OB)", "🏋️ POSILOVÁNÍ", "🚴 CYKLISTIKA"
         ]
 
         # Interaktivní tabulka – upravovat jde jen sloupec 'Trénink'
