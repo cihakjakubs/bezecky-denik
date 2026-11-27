@@ -490,7 +490,15 @@ elif stranka == "Statistiky":
         st.warning("👈 Nejdříve se přihlas v levém menu.")
     else:
         pocet_mesicu = st.slider("Zobrazit historii za posledních (měsíců):", 2, 12, 6)
-        dni_historie = pocet_mesicu * 30
+     dnes_dt = datetime.now()
+     # Posuneme se o (pocet_mesicu - 1) měsíců zpět a nastavíme 1. den v měsíci
+     cilovy_mesic = dnes_dt.month - (pocet_mesicu - 1)
+     cilovy_rok = dnes_dt.year
+     while cilovy_mesic <= 0:
+         cilovy_mesic += 12
+         cilovy_rok -= 1
+     prvni_den = datetime(cilovy_rok, cilovy_mesic, 1)
+     dni_historie = (dnes_dt - prvni_den).days
 
         with st.spinner(f"Načítám historii za posledních {pocet_mesicu} měsíců z Garminu..."):
             df_hist = nacti_data_z_garminu(
