@@ -91,6 +91,20 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
     dnes = datetime.now()
     od_data = (dnes - timedelta(days=dni)).strftime("%Y-%m-%d")
     do_data = dnes.strftime("%Y-%m-%d")
+    ulozene_dict = {}
+    if supabase:
+        try:
+            res = supabase.table("aktivity_cache").select("*").gte("datum", od_data).lte("datum", do_data).execute()
+            for r in res.data:
+                ulozene_dict[r["activity_id"]] = {
+                    "ID": r["activity_id"], "Datum": r["datum"], "Typ": r["typ"],
+                    "Trénink": r["trenink"], "Název": r["nazev"], "Vzdálenost (km)": r["vzdalenost_km"],
+                    "Prům. tep": r["prum_tep"], "Objem (min)": r["objem_min"], "Šedá (min)": r["seda_min"],
+                    "Rychlost (min)": r["rychlost_min"], "Celkem (min)": r["celkem_min"], "Převýšení (m)": r["prevyseni_m"]
+                }
+        except Exception:
+            pass
+
 
     aktivity = client.get_activities_by_date(od_data, do_data)
     seznam_aktivit = []
@@ -102,6 +116,9 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
             continue
 
         aid = akt['activityId']
+        if aid in ulozene_dict:
+            seznam_aktivit.append(ulozene_dict[aid])
+            continue
         nazev = akt['activityName']
         datum = akt['startTimeLocal'][:10]
         vzdalenost = round(akt.get('distance', 0) / 1000, 2)
@@ -260,7 +277,17 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
             "Celkem (min)": round((beh_objem + beh_seda + beh_rychlost) / 60, 1) if kategorie == "🏃 Běh" else celkovy_cas_min,
             "Převýšení (m)": prevyseni_celkem if kategorie == "🏃 Běh" else 0
         })
-
+        if supabase:
+            try:
+                posl = seznam_aktivit[-1]
+                supabase.table("aktivity_cache").upsert({
+                    "activity_id": aid, "datum": posl["Datum"], "typ": posl["Typ"],
+                    "trenink": posl["Trénink"], "nazev": posl["Název"], "vzdalenost_km": posl["Vzdálenost (km)"],
+                    "prum_tep": posl["Prům. tep"], "objem_min": posl["Objem (min)"], "seda_min": posl["Šedá (min)"],
+                    "rychlost_min": posl["Rychlost (min)"], "celkem_min": posl["Celkem (min)"], "prevyseni_m": posl["Převýšení (m)"]
+                }).execute()
+            except Exception:
+                pass
     return pd.DataFrame(seznam_aktivit)
 
 lim_pomaly_sec = st.session_state.pomaly_min * 60 + st.session_state.pomaly_sec
