@@ -40,8 +40,8 @@ with st.sidebar:
     st.title("🏃 Běžecký Deník")
     stranka = option_menu(
             menu_title=None,
-            options=["Dashboard", "Plánovač", "Deník aktivit", "Nastavení zón", "Budoucí deník"],
-            icons=["speedometer2", "calendar-plus", "activity", "gear", "journal-text"],
+            options=["Dashboard", "Plánovač", "Statistiky", "Deník aktivit", "Tréninkový deník", "Nastavení zón"],
+            icons=["speedometer2", "calendar-plus", "bar-chart-line", "activity", "journal-check", "gear"],
             default_index=0,
         styles={
             "container": {"padding": "0!important", "background-color": "transparent"},
