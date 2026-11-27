@@ -585,7 +585,7 @@ elif stranka == "Statistiky":
                     "🧭 OB (Orienťák)": "#16a085",
                     "🏆 ZÁVOD": "#f1c40f",
                     "🏆 ZÁVOD (OB)": "#f39c12",
-                    "🏋️ POSILOVÁNÍ": "#3498db"
+                    "🏋️ POSILOVÁNÍ": "#3498db",
                     "🛣️ LONG RUN": "#1abc9c",
                     "🎲 FARTLEK": "#e84393",
                     "🚴 CYKLISTIKA": "#0984e3",
