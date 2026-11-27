@@ -600,7 +600,7 @@ elif stranka == "Statistiky":
 # STRÁNKA 4: DENÍK AKTIVIT
 # ==========================================
 elif stranka == "Deník aktivit":
-    st.title("🏃 Deník aktivit (Klikni na 'Trénink' pro ruční úpravu)")
+    st.title("🏃 Deník aktivit")
     if email and heslo:
         # Nabídneme i přepínač období, ať můžeš upravovat i starší OB ze Statistik
         obdobi_denik = st.radio("Zobrazit období:", [st.session_state.dni_zpet, 90, 180], horizontal=True, format_func=lambda x: f"Posledních {x} dní")
