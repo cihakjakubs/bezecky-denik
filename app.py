@@ -29,8 +29,9 @@ if "db_nacteno" not in st.session_state:
                 for klic, hodnota in res.data[0].items():
                     if klic != "id":
                         st.session_state[klic] = hodnota
-            res_ob = supabase.table("aktivity_poznamky").select("activity_id").eq("je_teren_ob", True).execute()
-            st.session_state.rucni_teren_ids = [r["activity_id"] for r in res_ob.data]
+            res_poznamky = supabase.table("aktivity_poznamky").select("*").execute()
+            st.session_state.rucni_teren_ids = [r["activity_id"] for r in res_poznamky.data if r.get("je_teren_ob")]
+            st.session_state.vlastni_typy_db = {r["activity_id"]: r["vlastni_typ"] for r in res_poznamky.data if r.get("vlastni_typ")}
         except Exception as e:
             st.sidebar.error(f"Chyba DB: {e}")
     st.session_state.db_nacteno = True
