@@ -546,6 +546,10 @@ elif stranka == "Statistiky":
         if df_hist.empty:
             st.info("Za zvolené období nebyly nalezeny žádné aktivity.")
         else:
+            if df_hist.empty:
+            st.info("Za zvolené období nebyly nalezeny žádné aktivity")
+        else:
+            df_hist["Trénink"] = df_hist.apply(lambda r: st.session_state.get("vlastni_typy_db", {}).get(r["ID"], r["Trénink"]), axis=1)
             df_hist["Měsíc"] = df_hist["Datum"].str.slice(0, 7) # Např. "2026-11"
             df_behy_h = df_hist[df_hist["Typ"] == "🏃 Běh"]
 
@@ -608,26 +612,66 @@ elif stranka == "Statistiky":
 # STRÁNKA 4: DENÍK AKTIVIT
 # ==========================================
 elif stranka == "Deník aktivit":
-    st.title("🏃 Seznam stažených aktivit")
+    st.title("🏃 Deník aktivit (Klikni na 'Trénink' pro ruční úpravu)")
     if email and heslo:
+        # Nabídneme i přepínač období, ať můžeš upravovat i starší OB ze Statistik
+        obdobi_denik = st.radio("Zobrazit období:", [st.session_state.dni_zpet, 90, 180], horizontal=True, format_func=lambda x: f"Posledních {x} dní")
+
         df = nacti_data_z_garminu(
-            email, heslo, st.session_state.dni_zpet,
+            email, heslo, obdobi_denik,
             lim_pomaly_sec, lim_rychly_sec,
             st.session_state.tep_objem_max, st.session_state.tep_rychlost_min,
             st.session_state.zapnout_gap, tuple(st.session_state.rucni_teren_ids)
         )
-        st.dataframe(df.drop(columns=["ID"]), use_container_width=True, hide_index=True)
 
-        st.divider()
-        st.subheader("🌲 Přepnout běh na režim Terén / Orienťák / Sníh (podle tepu)")
-        behy_jen = df[df["Typ"] == "🏃 Běh"]
-        moznosti = {f"{r['Datum']} – {r['Název']}": r["ID"] for _, r in behy_jen.iterrows()}
-        vybrane = st.multiselect(
-            "Vyber běhy, které se mají hodnotit podle tepu místo tempa:",
-            options=list(moznosti.keys()),
-            default=[k for k, v in moznosti.items() if v in st.session_state.rucni_teren_ids]
+        # Pokud už má aktivita uložený tvůj ruční typ, zobrazíme ho
+        vlastni_mapa = st.session_state.get("vlastni_typy_db", {})
+        df["Trénink"] = df.apply(lambda r: vlastni_mapa.get(r["ID"], r["Trénink"]), axis=1)
+
+        mozne_typy = [
+            "🟢 OBJEM", "🟢 OBJEM +STRIDES", "🔥 TEMPO (Prahový)",
+            "⚡ INTERVALY (VO2max)", "⛰️ KOPCE", "🧭 OB (Orienťák)",
+            "🏆 ZÁVOD", "🏆 ZÁVOD (OB)", "🏋️ POSILOVÁNÍ"
+        ]
+
+        # Interaktivní tabulka – upravovat jde jen sloupec 'Trénink'
+        upraveny_df = st.data_editor(
+            df.drop(columns=["ID"]),
+            column_config={
+                "Trénink": st.column_config.SelectboxColumn(
+                    "Trénink (klikni pro změnu)",
+                    options=mozne_typy,
+                    required=True
+                )
+            },
+            disabled=[c for c in df.columns if c not in ["ID", "Trénink"]],
+            use_container_width=True,
+            hide_index=True
         )
-        st.session_state.rucni_teren_ids = [moznosti[k] for k in vybrane]
+
+        if st.button("💾 Uložit ruční úpravy tréninků", type="primary"):
+            if supabase:
+                for idx, radek in upraveny_df.iterrows():
+                    aid = int(df.loc[idx, "ID"])
+                    novy_typ = radek["Trénink"]
+                    puvodni_typ = df.loc[idx, "Trénink"]
+
+                    if novy_typ != puvodni_typ:
+                        je_ob = "OB" in novy_typ
+                        supabase.table("aktivity_poznamky").upsert({
+                            "activity_id": aid,
+                            "je_teren_ob": je_ob,
+                            "vlastni_typ": novy_typ
+                        }).execute()
+                        # Aktualizujeme rovnou i v cache, ať se to projeví ve Statistikách
+                        supabase.table("aktivity_cache").update({"trenink": novy_typ}).eq("activity_id", aid).execute()
+                        st.session_state.vlastni_typy_db[aid] = novy_typ
+                        if je_ob and aid not in st.session_state.rucni_teren_ids:
+                            st.session_state.rucni_teren_ids.append(aid)
+
+                st.cache_data.clear()
+                st.success("✅ Úpravy uloženy! Grafy ve Statistikách i na Dashboardu jsou aktualizované.")
+                st.rerun()
     else:
         st.warning("👈 Nejdříve se přihlas v levém menu.")
 
