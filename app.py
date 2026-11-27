@@ -251,32 +251,33 @@ def nacti_data_z_garminu(user_email, user_pass, dni, lim_pomaly, lim_rychly, tep
             typ_treninku = "🏋️ POSILOVÁNÍ"
         elif kategorie == "🏃 Běh":
             celkem_sec = beh_objem + beh_seda + beh_rychlost
-            podil_rychlosti = (beh_rychlost / celkem_sec) if celkem_sec > 0 else 0
-            podil_vyssi_intenzity = ((beh_rychlost + beh_seda) / celkem_sec) if celkem_sec > 0 else 0
-            prumerna_delka_useku = (sum(rychle_useky_delky) / len(rychle_useky_delky)) if rychle_useky_delky else 0
+            podil_objemu = (beh_objem / celkem_sec) if celkem_sec > 0 else 1.0
+            podil_rychlosti = (beh_rychlost / celkem_sec) if celkem_sec > 0 else 0.0
+            podil_vyssi_intenzity = ((beh_rychlost + beh_seda) / celkem_sec) if celkem_sec > 0 else 0.0
+            prumerna_delka_useku = (sum(rychle_useky_delky) / len(rychle_useky_delky)) if rychle_useky_delky else 0.0
             kratke_rovinky = [d for d in rychle_useky_delky if 8.0 <= d <= 35.0]
 
             if pouzit_tep_rezim:
                 typ_treninku = "🧭 OB"
             elif any(s in nazev_lower for s in ['závod', 'zavod', 'race', 'mčr', 'mcr']):
-             typ_treninku = "🏆 ZÁVOD"
+                typ_treninku = "🏆 ZÁVOD"
             elif 'kopce' in nazev_lower:
                 typ_treninku = "⛰️ KOPCE"
             elif 'fartlek' in nazev_lower:
                 typ_treninku = "🎲 FARTLEK"
-            elif podil_rychlosti < 0.12:
-                if celkem_sec >= 5100: # 85 minut a více = Long run
+            elif podil_objemu >= 0.75 and podil_rychlosti < 0.10:
+                if celkem_sec >= 4500:
                     typ_treninku = "🛣️ LONG RUN"
                 elif len(kratke_rovinky) >= 3:
                     typ_treninku = "🟢 OBJEM +STRIDES"
                 else:
                     typ_treninku = "🟢 OBJEM"
-            elif prumerna_delka_useku >= 150.0 or (podil_vyssi_intenzity >= 0.35 and len(rychle_useky_delky) <= 4):
-                typ_treninku = "🔥 TEMPO (Prahový)"
+            elif prumerna_delka_useku >= 150.0 or (podil_vyssi_intenzity >= 0.25 and len(rychle_useky_delky) <= 5):
+                typ_treninku = "🔥 TEMPO"
             elif len(rychle_useky_delky) >= 4:
                 typ_treninku = "⚡ INTERVALY"
             else:
-                typ_treninku = "🔥 TEMPO"
+                typ_treninku = "🟢 OBJEM"
 
         seznam_aktivit.append({
             "ID": aid,
